@@ -1,7 +1,7 @@
 
 appName: inferencing-app
 namespace: inferencing-app
-uri: https://github.com/validatedpatterns/mlops-fraud-detection/demo/credit-fraud-detection-demo
+uri: https://github.com/validatedpatterns/mlops-fraud-detection
 contextDir: demo/credit-fraud-detection-demo/application-gradio
 originalimage: python:3.10.4
 inferenceEndpoint: http://modelmesh-serving.credit-fraud-model:8008/v2/models/credit-card-fraud/infer
