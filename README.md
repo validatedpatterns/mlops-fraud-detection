@@ -83,7 +83,7 @@ There are a few important settings here that we need to set:
 - **Environment Variable:** Add a new one that's a **Config Map -> Key/value** and enter 
     - Get value by running: `oc get service mlflow-server -n mlops -o go-template --template='http://{{.metadata.name}}.{{.metadata.namespace}}.svc.cluster.local:8080{{println}}' `
     - **Key:** `MLFLOW_ROUTE` 
-    - **Value:** `http://<route-to-mlflow>:<port>`, replacing `<route-to-mlflow>` and `<port>` with the route and port that we found in [step one](#11-mlflow-route-through-the-visual-interface).  In my case it is `http://mlflow-server.mlflow.svc.cluster.local:8080`.
+    - **Value:** `http://<route-to-mlflow>:<port>`, replacing `<route-to-mlflow>` and `<port>` with the route and port that we found in [step one](#11-mlflow-route-through-the-visual-interface).  In my case it is `http://mlflow-server.mlops.svc.cluster.local:8080`.
 - **Cluster Storage:** Create new persistent storage - I call it "Credit Fraud Storage" and set the size to 20GB.
 
 ![Workbench Settings](img/Workbench_Settings.png)
