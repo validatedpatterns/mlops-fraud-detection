@@ -53,30 +53,3 @@ parameters:
 provisioner: openshift-storage.noobaa.io/obc
 reclaimPolicy: Delete
 volumeBindingMode: Immediate
-
----
-# - allowVolumeExpansion: true
-#   apiVersion: storage.k8s.io/v1
-#   kind: StorageClass
-#   metadata:
-#     name: gp2-csi
-#   parameters:
-#     encrypted: "true"
-#     type: gp2
-#   provisioner: ebs.csi.aws.com
-#   reclaimPolicy: Delete
-#   volumeBindingMode: WaitForFirstConsumer
-# --- 
-# - allowVolumeExpansion: true
-#   apiVersion: storage.k8s.io/v1
-#   kind: StorageClass
-#   metadata:
-#     annotations:
-#       storageclass.kubernetes.io/is-default-class: "true"
-#     name: gp3-csi
-#   parameters:
-#     encrypted: "true"
-#     type: gp3
-#   provisioner: ebs.csi.aws.com
-#   reclaimPolicy: Delete
-#   volumeBindingMode: WaitForFirstConsumer
