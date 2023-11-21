@@ -1,0 +1,9 @@
+numpy
+pandas
+tensorflow==2.10
+matplotlib
+scikit-learn
+seaborn
+mlflow
+tf2onnx
+onnxruntime
