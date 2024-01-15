@@ -2,9 +2,11 @@
 
 This pattern is based on credit-fraud-detection-demo [GitHub Source](https://github.com/red-hat-data-services/credit-fraud-detection-demo)
 
-# Introduction
+## Introduction
+
 This deployment is based on `validated pattern framework` that uses GitOps to easily provision all operators and apps
 This greatly reduces the time to provision everything manually
+
 ## Pre-requisites
 
 - Podman
@@ -36,8 +38,10 @@ Description of each component:
 The model we will build is a Credit Card Fraud Detection model, which predicts if a credit card usage is fraudulent or not depending on a few parameters such as: distance from home and last transaction, purchase price compared to median, if it's from a retailer that already has been purchased from before, if the PIN number is used and if it's an online order or not.
 
 ## Deploying the demo
+
 Following commands will take about 15-20 minutes
 >**Validated pattern will be deployed**
+
 ```sh
 git clone https://github.com/arslankhanali/mlops-credit-fraud
 cd mlops-credit-fraud
@@ -45,15 +49,16 @@ oc login --token=<> --server=<> # login to Openshift cluster
 podman machine start
 ./pattern.sh make install
 ```
+
 Finished Installation will look like:
 ![Alt text](images/installation.png)
-
 
 TA DA!!! Everything you need is already deplyed!
 Access installed components from UI:
 ![Alt text](images/menu.png)
 
 ### 1: Get the MLFlow Route using command-line
+
 You can use the OC command to get the hostname through:
 `oc get svc mlflow-server -n mlops -o go-template --template='{{.metadata.name}}.{{.metadata.namespace}}.svc.cluster.local{{println}}'`
 
@@ -63,6 +68,7 @@ The port you will find with: `oc get svc mlflow-server -n mlops -o yaml`
 In my case it was: `mlflow-server.mlops.svc.cluster.local:8080`
 We will use this value when creating the work bench
 `MLFLOW_ROUTE`=`http://mlflow-server.mlops.svc.cluster.local:8080`
+
 ### 2: Create a RHODS workbench
 
 Start by opening up RHODS by clicking on the 9 square symbol in the top menu and choosing "Red Hat OpenShift Data Science".
@@ -81,9 +87,9 @@ There are a few important settings here that we need to set:
 - **Notebook Image:** Standard Data Science
 - **Deployment Size:** Small
 - **Environment Variable:** Add a new one that's a **Config Map -> Key/value** and enter
-    - Get value by running: `oc get service mlflow-server -n mlops -o go-template --template='http://{{.metadata.name}}.{{.metadata.namespace}}.svc.cluster.local:8080{{println}}' `
-    - **Key:** `MLFLOW_ROUTE`
-    - **Value:** `http://<route-to-mlflow>:<port>`, replacing `<route-to-mlflow>` and `<port>` with the route and port that we found in [step one](#11-mlflow-route-through-the-visual-interface).  In my case it is `http://mlflow-server.mlops.svc.cluster.local:8080`.
+  - Get value by running: `oc get service mlflow-server -n mlops -o go-template --template='http://{{.metadata.name}}.{{.metadata.namespace}}.svc.cluster.local:8080{{println}}'`
+  - **Key:** `MLFLOW_ROUTE`
+  - **Value:** `http://<route-to-mlflow>:<port>`, replacing `<route-to-mlflow>` and `<port>` with the route and port that we found in [step one](#11-mlflow-route-through-the-visual-interface).  In my case it is `http://mlflow-server.mlops.svc.cluster.local:8080`.
 - **Cluster Storage:** Create new persistent storage - I call it "Credit Fraud Storage" and set the size to 20GB.
 
 ![Workbench Settings](img/Workbench_Settings.png)
@@ -95,9 +101,10 @@ Press Create Workbench and wait for it to start - status should say "Running" an
 Open the workbench and login if needed.
 
 ### 3: Train the model
+
 When inside the workbench (Jupyter), we are going to clone a GitHub repository which contains everything we need to train (and run) our model.
 You can clone the GitHub repository by pressing the GitHub button in the left side menu (see image), then select "Clone a Repository" and enter this GitHub URL:
-[https://github.com/arslankhanali/credit-fraud-detection-demo ](https://github.com/arslankhanali/credit-fraud-detection-demo)
+[https://github.com/arslankhanali/credit-fraud-detection-demo](https://github.com/arslankhanali/credit-fraud-detection-demo)
 
 ![Jupyter](img/Jupyter.png)
 
@@ -152,9 +159,9 @@ with mlflow.start_run():
     model_proto,_ = tf2onnx.convert.from_keras(model)
     mlflow.onnx.log_model(model_proto, "models")
 ```
+
 `with mlflow.start_run():` is used to tell MLFlow that we are starting a run, and we wrap our training code with it to define exactly what code belongs to the "run".
 Most of the rest of the code in this cell is normal model training and evaluation code, but at the bottom we can see how we send some custom metrics to MLFlow through `mlflow.log_metric` and then convert the model to ONNX. This is because ONNX is one of the standard formats for RHODS Model Serving which we will use later.
-
 
 Now run all the cells in the notebook from top to bottom, either by clicking Shift-Enter on every cell, or by going to Run->Run All Cells in the very top menu.
 If everything is set up correctly it will train the model and push both the run and the model to MLFlow.
@@ -163,6 +170,7 @@ You may see some warnings in the last cell related to MLFlow, as long as you see
 ![Trained model](img/Trained_model.png)
 
 ### 4: View the model in MLFlow
+
 Let's take a look at how it looks inside MLFlow now that we have trained the model.
 Open the MLFlow UI from the shortcut.
 
@@ -172,8 +180,8 @@ We will need the Full Path of the model in the next section when we are going to
 
 ![MLFlow Model Path](img/MLFlow_Model_Path.png)
 
-
 ### 5: Serve the model
+
 > **NOTE:** You can either serve the model using RHODS Model Serving or use the model straight from MLFlow.
 > We will here show how you serve it with RHODS Model Serving as that scales better for large applications and load.
 > At the bottom of this section we'll go through how it would look like to use MLFlow instead.
@@ -185,6 +193,7 @@ This data connection connects us to a storage we can load our models from.
 
 Here we need to fill out a few details. These are all assuming that you set up MLFlow according to this [guide](/tools-and-applications/mlflow/mlflow/) and have it connected to ODF. If that's not the case then enter the relevant details for your usecase.
 Copy the code section below and run it all to find your values.
+
 ```sh
 echo "==========Data connections Start==========="
 echo "Name \nmlflow-connection"
@@ -215,8 +224,8 @@ Then we will configure a model server, which will serve our models.
 
 ![Configure Model Server](img/Configure_Model_Server.png)
 
-
 #### Add Model Server
+
 Model server name     = credit card fraud
 Serving runtime       = OpenVINO Model Server
 Model server replicas = 1
@@ -224,14 +233,15 @@ Model server size     = Small
 Check the `Make deployed models available through an external route` box if you want to access model externally. Not needed in our case.
 
 #### Deploy Model
+
 Finally, we will deply the model, to do that, press the "Deploy model" button which is in the same place that "Configure Model" was before.
 We need to fill out a few settings here:
 
 - **Name**: credit card fraud
 - **Model framework**: onnx-1 - Since we saved the model as ONNX in the [model training section](#3-train-the-model)
 - **Model location**:
-    - **Name**: `mlflow-connection`
-    - **Folder path**: This is the full path we can see in the MLFlow interface from the end of the [previous section](#4-view-the-model-in-mlflow). In my case it's `1/b86481027f9b4b568c9efa3adc01929f/artifacts/models`.
+  - **Name**: `mlflow-connection`
+  - **Folder path**: This is the full path we can see in the MLFlow interface from the end of the [previous section](#4-view-the-model-in-mlflow). In my case it's `1/b86481027f9b4b568c9efa3adc01929f/artifacts/models`.
     Beware that we only need the last part, which looks something like: `1/..../artifacts/models`
     > Note: `models` not `model`. There are 2 folder in MLflow that might cause confusion.
 
@@ -246,17 +256,19 @@ You can see the status here:
 
 Click on "Internal Service" in the same row to see the endpoints, we will need those when we deploy the model application.
 
-
 ### 6: Access the model application
+
 The model application is a visual interface for interacting with the model. You can use it to send data to the model and get a prediction of whether a transaction is fraudulent or not.
 It is deployed in `inferencing-app` project.
 You can access the model application from the 9box short-cut on top right in openshift console .  `Inferencing App`
 
 #### Check the `INFERENCE_ENDPOINT` env variable value
+
 Go to https://your-uri/ns/inferencing-app/deployments/credit-fraud-detection-demo/environment.
 Make sure correct INFERENCE_ENDPOINT value is set. In my case it is `http://modelmesh-serving.credit-fraud-model:8008/v2/models/credit-card-fraud/infer`
 
 #### You can get this value from
+
 - **Value**: In the RHODS projects interface (from the previous section), copy the "restURL" and add `/v2/models/credit-card-fraud/infer` to the end if it's not already there. For example: `http://modelmesh-serving.credit-card-fraud:8008/v2/models/credit-card-fraud/infer`
 ![Model Serving UR](img/Model_Serving_URL.png)
 
