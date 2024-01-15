@@ -81,7 +81,7 @@ clusterGroup:
       name: inferencing-app
       namespace: inferencing-app
       project: inferencing-app
-      path: charts/all/inferenceApp
+      path: charts/all/inferenceapp
 
     
     vault:
