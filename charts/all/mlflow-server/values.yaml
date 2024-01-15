@@ -1,3 +1,8 @@
+global:
+  localClusterDomain: ""
+clusterGroup:
+  name: ""
+
 namespace: mlops
 # -- String to partially override fullname template (will maintain the release name)
 nameOverride: ""
