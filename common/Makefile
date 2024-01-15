@@ -28,7 +28,18 @@ ifneq ("$(wildcard $(UUID_FILE))","")
 	UUID_HELM_OPTS := --set main.analyticsUUID=$(UUID)
 endif
 
-HELM_OPTS=-f values-global.yaml --set main.git.repoURL="$(TARGET_REPO)" --set main.git.revision=$(TARGET_BRANCH) $(TARGET_SITE_OPT) $(UUID_HELM_OPTS) $(EXTRA_HELM_OPTS)
+# Set the secret name *and* its namespace when deploying from private repositories
+# The format of said secret is documented here: https://argo-cd.readthedocs.io/en/stable/operator-manual/declarative-setup/#repositories
+TOKEN_SECRET ?=
+TOKEN_NAMESPACE ?=
+
+ifeq ($(TOKEN_SECRET),)
+  HELM_OPTS=-f values-global.yaml --set main.git.repoURL="$(TARGET_REPO)" --set main.git.revision=$(TARGET_BRANCH) $(TARGET_SITE_OPT) $(UUID_HELM_OPTS) $(EXTRA_HELM_OPTS)
+else
+  # When we are working with a private repository we do not escape the git URL as it might be using an ssh secret which does not use https://
+  TARGET_CLEAN_REPO=$(shell git ls-remote --get-url --symref $(TARGET_ORIGIN))
+  HELM_OPTS=-f values-global.yaml --set main.tokenSecret=$(TOKEN_SECRET) --set main.tokenSecretNamespace=$(TOKEN_NAMESPACE) --set main.git.repoURL="$(TARGET_CLEAN_REPO)" --set main.git.revision=$(TARGET_BRANCH) $(TARGET_SITE_OPT) $(UUID_HELM_OPTS) $(EXTRA_HELM_OPTS)
+endif
 
 
 ##@ Pattern Common Tasks
@@ -43,6 +54,13 @@ help: ## This help message
 .PHONY: show
 show: ## show the starting template without installing it
 	helm template common/operator-install/ --name-template $(NAME) $(HELM_OPTS)
+
+preview-all:
+	@common/scripts/preview-all.sh $(TARGET_REPO) $(TARGET_BRANCH)
+
+preview-%:
+	CLUSTERGROUP?=$(shell yq ".main.clusterGroupName" values-global.yaml)
+	@common/scripts/preview.sh $(CLUSTERGROUP) $* $(TARGET_REPO) $(TARGET_BRANCH)
 
 .PHONY: operator-deploy
 operator-deploy operator-upgrade: validate-prereq validate-origin validate-cluster ## runs helm install
@@ -150,10 +168,18 @@ argo-healthcheck: ## Checks if all argo applications are synced
 
 CHARTS=$(shell find . -type f -iname 'Chart.yaml' -exec dirname "{}"  \; | grep -v examples | sed -e 's/.\///')
 # Section related to tests and linting
-TEST_OPTS= -f values-global.yaml --set global.repoURL="https://github.com/pattern-clone/mypattern" \
-	--set main.git.repoURL="https://github.com/pattern-clone/mypattern" --set main.git.revision=main --set global.pattern="mypattern" \
-	--set global.namespace="pattern-namespace" --set global.hubClusterDomain=apps.hub.example.com --set global.localClusterDomain=apps.region.example.com --set global.clusterDomain=region.example.com\
-	--set "clusterGroup.imperative.jobs[0].name"="test" --set "clusterGroup.imperative.jobs[0].playbook"="ansible/test.yml"
+TEST_OPTS= -f values-global.yaml \
+	--set global.repoURL="https://github.com/pattern-clone/mypattern" \
+	--set main.git.repoURL="https://github.com/pattern-clone/mypattern" \
+	--set main.git.revision=main --set global.pattern="mypattern" \
+	--set global.namespace="pattern-namespace" \
+	--set global.hubClusterDomain=apps.hub.example.com \
+	--set global.localClusterDomain=apps.region.example.com \
+	--set global.clusterDomain=region.example.com \
+	--set global.clusterVersion="4.12" \
+	--set global.clusterPlatform=aws \
+	--set "clusterGroup.imperative.jobs[0].name"="test" \
+	--set "clusterGroup.imperative.jobs[0].playbook"="ansible/test.yml"
 PATTERN_OPTS=-f common/examples/values-example.yaml
 EXECUTABLES=git helm oc ansible
 
