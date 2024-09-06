@@ -124,7 +124,7 @@ helm upgrade -i [release-name] strangiato/mlflow-server --set openshiftOauth.ena
 
 Once this option is enabled you can set the following environment variable in your training environment and MLFlow will automatically pass your Bearer Token to the OpenShift OAuth Proxy and authenticate any API calls MLFlow makes to the server.
 
-```
+```sh
 MLFLOW_TRACKING_TOKEN=[my-token]
 ```
 
