@@ -29,6 +29,7 @@ jobs:
       - name: Build container and save tarball
         env:
           CONTAINER: ${{ env.NAME }}:${{ env.TAG }}
+        working-directory: src/inferencing-app
         run: |
           podman build -t "${CONTAINER}" .
           buildah push "${CONTAINER}" "docker-archive:/tmp/image.tar:${CONTAINER}"
