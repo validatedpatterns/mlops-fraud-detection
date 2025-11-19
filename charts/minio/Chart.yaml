@@ -1,0 +1,6 @@
+apiVersion: v2
+name: minio
+description: A Helm chart to deploy MinIO and supporting setup jobs for the fraud-detection demo
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

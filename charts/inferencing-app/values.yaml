@@ -1,0 +1,8 @@
+appName: inferencing-app
+port: 7860
+protocol: TCP
+
+image:
+  repository: quay.io/dminnear/fraud-detection-app
+  tag: full-model
+  pullPolicy: Always

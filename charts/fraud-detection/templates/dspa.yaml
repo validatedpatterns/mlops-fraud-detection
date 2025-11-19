@@ -1,0 +1,25 @@
+apiVersion: datasciencepipelinesapplications.opendatahub.io/v1
+kind: DataSciencePipelinesApplication
+metadata:
+  name: dspa
+spec:
+  dspVersion: v2
+  apiServer:
+    cABundle:
+      configMapKey: ca.crt
+      configMapName: kube-root-ca.crt
+    enableSamplePipeline: false
+  objectStorage:
+    disableHealthCheck: false
+    enableExternalRoute: false
+    externalStorage:
+      basePath: ''
+      bucket: pipeline-artifacts
+      host: {{ printf "minio-s3-fraud-detection.apps.%s" .Values.global.clusterDomain }}
+      port: ''
+      region: us-east-1
+      s3CredentialsSecret:
+        accessKey: AWS_ACCESS_KEY_ID
+        secretKey: AWS_SECRET_ACCESS_KEY
+        secretName: aws-connection-pipeline-artifacts
+      scheme: https

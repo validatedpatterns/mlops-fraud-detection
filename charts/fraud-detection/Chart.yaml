@@ -1,0 +1,6 @@
+apiVersion: v2
+name: fraud-detection
+description: A Helm chart to deploy fraud-detection data pipeline
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

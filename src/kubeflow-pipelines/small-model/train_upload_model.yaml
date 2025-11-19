@@ -1,0 +1,265 @@
+# PIPELINE DEFINITION
+# Name: train-upload-model
+components:
+  comp-get-data:
+    executorLabel: exec-get-data
+    outputDefinitions:
+      artifacts:
+        train_data_output_path:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+        validate_data_output_path:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+  comp-train-model:
+    executorLabel: exec-train-model
+    inputDefinitions:
+      artifacts:
+        train_data_input_path:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+        validate_data_input_path:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      artifacts:
+        model_output_path:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+  comp-upload-model:
+    executorLabel: exec-upload-model
+    inputDefinitions:
+      artifacts:
+        input_model_path:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+deploymentSpec:
+  executors:
+    exec-get-data:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - get_data
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.13.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef get_data(\n    train_data_output_path: OutputPath(), validate_data_output_path:\
+          \ OutputPath()\n):\n    import urllib.request\n\n    print(\"starting download...\"\
+          )\n    print(\"downloading training data\")\n    url = \"https://raw.githubusercontent.com/rh-aiservices-bu/fraud-detection/main/data/train.csv\"\
+          \n    urllib.request.urlretrieve(url, train_data_output_path)\n    print(\"\
+          train data downloaded\")\n    print(\"downloading validation data\")\n \
+          \   url = \"https://raw.githubusercontent.com/rh-aiservices-bu/fraud-detection/main/data/validate.csv\"\
+          \n    urllib.request.urlretrieve(url, validate_data_output_path)\n    print(\"\
+          validation data downloaded\")\n\n"
+        image: quay.io/modh/runtime-images:runtime-cuda-pytorch-ubi9-python-3.11-20250501-8e41d5c
+    exec-train-model:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - train_model
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.13.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef train_model(\n    train_data_input_path: InputPath(),\n    validate_data_input_path:\
+          \ InputPath(),\n    model_output_path: OutputPath(),\n):\n    import pickle\n\
+          \    from pathlib import Path\n\n    import numpy as np\n    import pandas\
+          \ as pd\n    import torch\n    import torch.nn as nn\n    from sklearn.preprocessing\
+          \ import StandardScaler\n    from sklearn.utils import class_weight\n\n\
+          \    torch.set_default_dtype(torch.float32)\n\n    feature_cols = list(range(7))\n\
+          \    label_col = 7\n\n    df_train = pd.read_csv(train_data_input_path)\n\
+          \    df_val = pd.read_csv(validate_data_input_path)\n\n    X_train = df_train.iloc[:,\
+          \ feature_cols].values\n    y_train = df_train.iloc[:, label_col].values.reshape(-1,\
+          \ 1)\n\n    X_val = df_val.iloc[:, feature_cols].values\n    y_val = df_val.iloc[:,\
+          \ label_col].values.reshape(-1, 1)\n\n    scaler = StandardScaler()\n  \
+          \  X_train = scaler.fit_transform(X_train).astype(\"float32\")\n    X_val\
+          \ = scaler.transform(X_val).astype(\"float32\")\n    y_train = y_train.astype(\"\
+          float32\")\n    y_val = y_val.astype(\"float32\")\n\n    Path(\"artifact\"\
+          ).mkdir(parents=True, exist_ok=True)\n    pickle.dump(scaler, open(\"artifact/scaler.pkl\"\
+          , \"wb\"))\n\n    cw = class_weight.compute_class_weight(\n        \"balanced\"\
+          , classes=np.unique(y_train), y=y_train.ravel()\n    )\n    pos_weight =\
+          \ torch.tensor([cw[1] / cw[0]], dtype=torch.float32)\n\n    class FraudNetMedium(nn.Module):\n\
+          \        def __init__(self, input_dim):\n            super().__init__()\n\
+          \            self.net = nn.Sequential(\n                nn.Linear(input_dim,\
+          \ 128),\n                nn.ReLU(),\n                nn.Dropout(0.2),\n\
+          \                nn.Linear(128, 128),\n                nn.ReLU(),\n    \
+          \            nn.Dropout(0.2),\n                nn.Linear(128, 64),\n   \
+          \             nn.ReLU(),\n                nn.Dropout(0.2),\n           \
+          \     nn.Linear(64, 1),\n                nn.Sigmoid(),\n            )\n\n\
+          \        def forward(self, x):\n            return self.net(x)\n\n    device\
+          \ = torch.device(\"cuda\" if torch.cuda.is_available() else \"cpu\")\n \
+          \   model = FraudNetMedium(len(feature_cols)).to(device)\n\n    X_train_t\
+          \ = torch.tensor(X_train, device=device)\n    y_train_t = torch.tensor(y_train,\
+          \ device=device)\n    X_val_t = torch.tensor(X_val, device=device)\n   \
+          \ y_val_t = torch.tensor(y_val, device=device)\n\n    sample_weights = (y_train_t\
+          \ * (pos_weight[0] - 1) + 1).flatten()\n    criterion = nn.BCELoss(weight=sample_weights)\n\
+          \    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)\n\n    y_train_flat\
+          \ = y_train_t.flatten()\n\n    for epoch in range(3):\n        model.train()\n\
+          \        optimizer.zero_grad()\n        preds = model(X_train_t).flatten()\n\
+          \        loss = criterion(preds, y_train_flat)\n        loss.backward()\n\
+          \        optimizer.step()\n\n        model.eval()\n        with torch.no_grad():\n\
+          \            val_preds = model(X_val_t).flatten()\n            val_loss\
+          \ = nn.BCELoss()(val_preds, y_val_t.flatten())\n            val_acc = ((val_preds\
+          \ > 0.5).float() == y_val_t.flatten()).float().mean()\n\n        print(\n\
+          \            f\"Epoch {epoch + 1}: train loss {loss.item():.4f} | val loss\
+          \ {val_loss.item():.4f} | val acc {val_acc.item():.4f}\"\n        )\n\n\
+          \    dummy = torch.randn(1, len(feature_cols), dtype=torch.float32)\n  \
+          \  torch.onnx.export(\n        model.cpu(),\n        dummy,\n        model_output_path,\n\
+          \        input_names=[\"dense_input\"],\n        output_names=[\"output\"\
+          ],\n        dynamic_axes={\"dense_input\": {0: \"batch\"}, \"output\": {0:\
+          \ \"batch\"}},\n        opset_version=13,\n    )\n\n"
+        image: quay.io/modh/runtime-images:runtime-cuda-pytorch-ubi9-python-3.11-20250501-8e41d5c
+    exec-upload-model:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - upload_model
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.13.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef upload_model(input_model_path: InputPath()):\n    import os\n\
+          \n    import boto3\n    import botocore\n\n    aws_access_key_id = os.environ.get(\"\
+          AWS_ACCESS_KEY_ID\")\n    aws_secret_access_key = os.environ.get(\"AWS_SECRET_ACCESS_KEY\"\
+          )\n    endpoint_url = os.environ.get(\"AWS_S3_ENDPOINT\")\n    region_name\
+          \ = os.environ.get(\"AWS_DEFAULT_REGION\")\n    bucket_name = os.environ.get(\"\
+          AWS_S3_BUCKET\")\n\n    s3_key = os.environ.get(\"S3_KEY\")\n\n    session\
+          \ = boto3.session.Session(\n        aws_access_key_id=aws_access_key_id,\
+          \ aws_secret_access_key=aws_secret_access_key\n    )\n\n    s3_resource\
+          \ = session.resource(\n        \"s3\",\n        config=botocore.client.Config(signature_version=\"\
+          s3v4\"),\n        endpoint_url=endpoint_url,\n        region_name=region_name,\n\
+          \    )\n\n    bucket = s3_resource.Bucket(bucket_name)\n\n    print(f\"\
+          Uploading {s3_key}\")\n    bucket.upload_file(input_model_path, s3_key)\n\
+          \n"
+        env:
+        - name: S3_KEY
+          value: models/fraud/1/model.onnx
+        image: quay.io/modh/runtime-images:runtime-cuda-pytorch-ubi9-python-3.11-20250501-8e41d5c
+pipelineInfo:
+  name: train-upload-model
+root:
+  dag:
+    tasks:
+      get-data:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-get-data
+        taskInfo:
+          name: get-data
+      train-model:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-train-model
+        dependentTasks:
+        - get-data
+        inputs:
+          artifacts:
+            train_data_input_path:
+              taskOutputArtifact:
+                outputArtifactKey: train_data_output_path
+                producerTask: get-data
+            validate_data_input_path:
+              taskOutputArtifact:
+                outputArtifactKey: validate_data_output_path
+                producerTask: get-data
+        taskInfo:
+          name: train-model
+      upload-model:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-upload-model
+        dependentTasks:
+        - train-model
+        inputs:
+          artifacts:
+            input_model_path:
+              taskOutputArtifact:
+                outputArtifactKey: model_output_path
+                producerTask: train-model
+        taskInfo:
+          name: upload-model
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.13.0
+---
+platforms:
+  kubernetes:
+    deploymentSpec:
+      executors:
+        exec-upload-model:
+          secretAsEnv:
+          - keyToEnv:
+            - envVar: AWS_ACCESS_KEY_ID
+              secretKey: AWS_ACCESS_KEY_ID
+            - envVar: AWS_SECRET_ACCESS_KEY
+              secretKey: AWS_SECRET_ACCESS_KEY
+            - envVar: AWS_DEFAULT_REGION
+              secretKey: AWS_DEFAULT_REGION
+            - envVar: AWS_S3_BUCKET
+              secretKey: AWS_S3_BUCKET
+            - envVar: AWS_S3_ENDPOINT
+              secretKey: AWS_S3_ENDPOINT
+            secretName: aws-connection-my-storage
+            secretNameParameter:
+              runtimeValue:
+                constant: aws-connection-my-storage

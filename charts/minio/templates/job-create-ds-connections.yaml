@@ -1,0 +1,105 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-ds-connections
+spec:
+  template:
+    spec:
+      serviceAccountName: demo-setup
+      restartPolicy: Never
+      containers:
+        - name: create-ds-connections
+          image: image-registry.openshift-image-registry.svc:5000/openshift/tools:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/bash
+          args:
+            - -ec
+            - |
+              echo -n 'Waiting for minio route'
+              while ! oc get route minio-s3 2>/dev/null | grep -qF minio-s3; do
+                echo -n .
+                sleep 5
+              done; echo
+
+              echo -n 'Waiting for minio root user secret'
+              while ! oc get secret minio-root-user 2>/dev/null | grep -qF minio-root-user; do
+                echo -n .
+                sleep 5
+              done; echo
+
+              MINIO_ROOT_USER=$(oc get secret minio-root-user -o jsonpath='{.data.MINIO_ROOT_USER}' | base64 -d)
+              MINIO_ROOT_PASSWORD=$(oc get secret minio-root-user -o jsonpath='{.data.MINIO_ROOT_PASSWORD}' | base64 -d)
+              MINIO_HOST=https://$(oc get route minio-s3 -o jsonpath='{.spec.host}')
+
+              # Common S3 JSON with verify_ssl for my-storage
+              STORAGE_JSON=$(cat <<EOF
+              {"access_key_id":"$MINIO_ROOT_USER","bucket":"my-storage","default_bucket":"my-storage","endpoint_url":"$MINIO_HOST","region":"us-east-1","secret_access_key":"$MINIO_ROOT_PASSWORD","type":"s3","verify_ssl":"false"}
+              EOF
+              )
+
+              PIPELINE_JSON=$(cat <<EOF
+              {"access_key_id":"$MINIO_ROOT_USER","bucket":"pipeline-artifacts","default_bucket":"pipeline-artifacts","endpoint_url":"$MINIO_HOST","region":"us-east-1","secret_access_key":"$MINIO_ROOT_PASSWORD","type":"s3"}
+              EOF
+              )
+
+              b64_storage=$(echo -n "$STORAGE_JSON" | base64 -w 0)
+              b64_pipeline=$(echo -n "$PIPELINE_JSON" | base64 -w 0)
+
+              # Create the main two secrets
+              cat << EOF | oc apply -f-
+              apiVersion: v1
+              kind: Secret
+              metadata:
+                annotations:
+                  opendatahub.io/connection-type: s3
+                  openshift.io/display-name: My Storage
+                labels:
+                  opendatahub.io/dashboard: "true"
+                  opendatahub.io/managed: "true"
+                name: aws-connection-my-storage
+              data:
+                AWS_ACCESS_KEY_ID: $(echo -n "$MINIO_ROOT_USER" | base64 -w 0)
+                AWS_SECRET_ACCESS_KEY: $(echo -n "$MINIO_ROOT_PASSWORD" | base64 -w 0)
+              stringData:
+                AWS_DEFAULT_REGION: us-east-1
+                AWS_S3_BUCKET: my-storage
+                AWS_S3_ENDPOINT: $MINIO_HOST
+              type: Opaque
+              EOF
+
+              cat << EOF | oc apply -f-
+              apiVersion: v1
+              kind: Secret
+              metadata:
+                annotations:
+                  opendatahub.io/connection-type: s3
+                  openshift.io/display-name: Pipeline Artifacts
+                labels:
+                  opendatahub.io/dashboard: "true"
+                  opendatahub.io/managed: "true"
+                name: aws-connection-pipeline-artifacts
+              data:
+                AWS_ACCESS_KEY_ID: $(echo -n "$MINIO_ROOT_USER" | base64 -w 0)
+                AWS_SECRET_ACCESS_KEY: $(echo -n "$MINIO_ROOT_PASSWORD" | base64 -w 0)
+              stringData:
+                AWS_DEFAULT_REGION: us-east-1
+                AWS_S3_BUCKET: pipeline-artifacts
+                AWS_S3_ENDPOINT: $MINIO_HOST
+              type: Opaque
+              EOF
+
+              # Create the storage-config secret
+              cat << EOF | oc apply -f-
+              apiVersion: v1
+              kind: Secret
+              metadata:
+                name: storage-config
+                namespace: fraud-detection
+                labels:
+                  opendatahub.io/managed: 'false'
+              data:
+                aws-connection-my-storage: $b64_storage
+                aws-connection-pipeline-artifacts: $b64_pipeline
+              type: Opaque
+              EOF

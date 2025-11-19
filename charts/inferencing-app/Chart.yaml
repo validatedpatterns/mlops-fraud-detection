@@ -1,0 +1,6 @@
+apiVersion: v2
+description: Helm chart for the inferencing app that's part of the MLOPS credit fraud detection
+keywords:
+- pattern
+name: inferencing-app
+version: 0.0.1
