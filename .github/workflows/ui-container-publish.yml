@@ -1,0 +1,103 @@
+name: Publish UI container app to Quay
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: quay.io/validatedpatterns
+  NAME: fraud-detection-app
+  TAG: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || (github.ref_name == 'main' && 'latest' || github.ref_name) }}
+
+jobs:
+  build-container:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Build container and save tarball
+        env:
+          CONTAINER: ${{ env.NAME }}:${{ env.TAG }}
+        working-directory: src/inferencing-app
+        run: |
+          podman build -t "${CONTAINER}" .
+          buildah push "${CONTAINER}" "docker-archive:/tmp/image.tar:${CONTAINER}"
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: image-${{ github.run_id }}
+          path: /tmp/image.tar
+          retention-days: 1
+
+  push-container:
+    needs: [build-container]
+    if: github.event_name != 'pull_request'
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # This is used to complete the identity challenge
+      # with sigstore/fulcio when running outside of PRs.
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Download image
+        uses: actions/download-artifact@v6
+        with:
+          name: image-${{ github.run_id }}
+          path: /tmp
+
+      - name: Load tarballs into local containers-storage
+        run: |
+          buildah pull docker-archive:/tmp/image.tar
+
+      - name: Log into Quay
+        env:
+          USERNAME: ${{ secrets.QUAY_USERNAME }}
+          PASSWORD: ${{ secrets.QUAY_PASSWORD }}
+        run: |
+          buildah login -u "${USERNAME}" -p "${PASSWORD}" quay.io
+
+      # The compressed manifest in Quay has a different digest than the local so we
+      # need to use skopeo to retrieve the correct digest for signing
+      - name: Push to Quay
+        id: manifest-push
+        env:
+          CONTAINER: ${{ env.NAME }}:${{ env.TAG }}
+        run: |
+          podman tag "${CONTAINER}" "${REGISTRY}/${CONTAINER"
+          podman push "${REGISTRY}/${CONTAINER"
+          DIGEST=$(skopeo inspect --format "{{.Digest}}" "docker://${REGISTRY}/${CONTAINER}")
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
+        with:
+          cosign-release: "v2.2.4"
+
+      # Cosign expects the docker config.json for registry authentication so we must
+      # copy it from buildah
+      - name: Sign the published Docker image
+        env:
+          CONTAINER: ${{ env.NAME }}:${{ env.TAG }}
+          DIGEST: ${{ steps.manifest-push.outputs.digest }}
+        run: |
+          cat "${XDG_RUNTIME_DIR}/containers/auth.json" > ~/.docker/config.json
+          cosign sign --yes "${REGISTRY}/${CONTAINER}@${DIGEST}"

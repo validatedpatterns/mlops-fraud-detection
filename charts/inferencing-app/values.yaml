@@ -3,6 +3,6 @@ port: 7860
 protocol: TCP
 
 image:
-  repository: quay.io/dminnear/fraud-detection-app
-  tag: full-model
+  repository: quay.io/validatedpatterns/fraud-detection-app
+  tag: latest
   pullPolicy: Always

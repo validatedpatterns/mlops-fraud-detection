@@ -122,7 +122,7 @@ spec:
                   "display_name": "fraud-detection",
                   "description": "",
                   "package_url": {
-                    "pipeline_url": "https://raw.githubusercontent.com/dminnear-rh/mlops/refs/heads/main/src/kubeflow-pipelines/small-model/train_upload_model.yaml"
+                    "pipeline_url": "https://raw.githubusercontent.com/validatedpatterns/mlops-fraud-detection/refs/heads/main/src/kubeflow-pipelines/small-model/train_upload_model.yaml"
                   }
                 }
               }
