@@ -82,8 +82,8 @@ jobs:
         env:
           CONTAINER: ${{ env.NAME }}:${{ env.TAG }}
         run: |
-          podman tag "${CONTAINER}" "${REGISTRY}/${CONTAINER"
-          podman push "${REGISTRY}/${CONTAINER"
+          podman tag "${CONTAINER}" "${REGISTRY}/${CONTAINER}"
+          podman push "${REGISTRY}/${CONTAINER}"
           DIGEST=$(skopeo inspect --format "{{.Digest}}" "docker://${REGISTRY}/${CONTAINER}")
           echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
 
