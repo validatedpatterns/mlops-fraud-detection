@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: minio
+    component: minio
+  name: minio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+      component: minio
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: minio
+        component: minio
+    spec:
+      containers:
+        - name: minio
+          image: {{ .Values.minio.image }}
+          command:
+            - /bin/bash
+            - -c
+          args:
+            - minio server /data --console-address :9090
+          envFrom:
+            - secretRef:
+                name: minio-root-user
+          ports:
+            - containerPort: 9000
+              name: api
+              protocol: TCP
+            - containerPort: 9090
+              name: console
+              protocol: TCP
+          resources:
+            limits:
+              cpu: "2"
+              memory: 2Gi
+            requests:
+              cpu: 200m
+              memory: 1Gi
+          volumeMounts:
+            - name: minio
+              mountPath: /data
+      volumes:
+        - name: minio
+          persistentVolumeClaim:
+            claimName: minio
+        - name: empty
+          emptyDir: {}

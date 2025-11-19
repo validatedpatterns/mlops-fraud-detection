@@ -1,0 +1,6 @@
+minio:
+  image: quay.io/minio/minio:latest
+  storageSize: 20Gi
+buckets:
+  - pipeline-artifacts
+  - my-storage

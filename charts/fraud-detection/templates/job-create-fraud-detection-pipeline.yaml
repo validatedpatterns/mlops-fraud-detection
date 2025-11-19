@@ -1,0 +1,158 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pipeline-bootstrap
+  namespace: fraud-detection
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: port-forwarder
+  namespace: fraud-detection
+rules:
+  - apiGroups: [""]
+    resources: ["services", "endpoints"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/portforward"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pipeline-bootstrap-portforward
+  namespace: fraud-detection
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: port-forwarder
+subjects:
+  - kind: ServiceAccount
+    name: pipeline-bootstrap
+    namespace: fraud-detection
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-fraud-detection-pipeline
+  namespace: fraud-detection
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: null
+  template:
+    metadata:
+      name: create-fraud-detection-pipeline
+    spec:
+      serviceAccountName: pipeline-bootstrap
+      restartPolicy: Never
+      containers:
+        - name: bootstrap
+          image: image-registry.openshift-image-registry.svc:5000/openshift/tools:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              set -o pipefail
+
+              API="https://127.0.0.1:8443"
+              HEALTH="${API}/apis/v2beta1/healthz"
+              PIPELINES="${API}/apis/v2beta1/pipelines"
+              RUNS="${API}/apis/v2beta1/runs"
+
+              echo "⏳ Waiting for endpoints on svc/ds-pipeline-dspa…"
+              for i in {1..60}; do
+                if oc get ep ds-pipeline-dspa -n fraud-detection > /dev/null 2>&1; then
+                  ENDPOINTS=$(oc get ep ds-pipeline-dspa -n fraud-detection -o jsonpath='{.subsets[*].addresses[*].ip}')
+                  if [[ -n "$ENDPOINTS" ]]; then
+                    echo "✅ Found endpoints: $ENDPOINTS"
+                    break
+                  fi
+                fi
+                sleep 5
+              done
+
+              # Start port-forward in background
+              start_port_forward() {
+                echo "🔌 Starting port-forward svc/ds-pipeline-dspa (8443 → 8888)…"
+                oc -n fraud-detection port-forward svc/ds-pipeline-dspa 8443:8888 --address 127.0.0.1 >/tmp/port-forward.log 2>&1 &
+                PF_PID=$!
+                echo $PF_PID > /tmp/pf.pid
+                trap "kill $PF_PID" EXIT
+              }
+
+              port_forward_alive() {
+                kill -0 "$(cat /tmp/pf.pid)" 2>/dev/null
+              }
+
+              start_port_forward
+
+              echo "🌐 Waiting for Pipeline API at ${HEALTH} to be ready…"
+              for i in {1..60}; do
+                if curl -ksf "$HEALTH" > /dev/null; then
+                  echo "✅ Pipeline API is ready."
+                  break
+                fi
+
+                if ! port_forward_alive; then
+                  echo "⚠️ Port-forward died, restarting…"
+                  start_port_forward
+                fi
+
+                sleep 5
+
+                if [ "$i" -eq 60 ]; then
+                  echo "❌ Timed out waiting for the pipeline API."
+                  cat /tmp/port-forward.log
+                  exit 1
+                fi
+              done
+
+              # Write JSON payload to a safe location
+              cat > /tmp/payload.json <<'EOF'
+              {
+                "pipeline": {
+                  "display_name": "fraud-detection",
+                  "description": ""
+                },
+                "pipeline_version": {
+                  "display_name": "fraud-detection",
+                  "description": "",
+                  "package_url": {
+                    "pipeline_url": "https://raw.githubusercontent.com/dminnear-rh/mlops/refs/heads/main/src/kubeflow-pipelines/small-model/train_upload_model.yaml"
+                  }
+                }
+              }
+              EOF
+
+              PIPELINE_ID=$(curl -ks -H 'Content-Type: application/json' \
+                -X POST --data @/tmp/payload.json \
+                "${PIPELINES}/create" \
+                | python3 -c 'import sys, json; print(json.load(sys.stdin).get("pipeline_id", ""))')
+
+              echo "pipeline_id=${PIPELINE_ID}"
+
+              if [[ -z "${PIPELINE_ID}" ]]; then
+                echo "❌ Failed to extract pipeline_id. Exiting."
+                exit 1
+              fi
+
+              echo "🚀 Triggering run…"
+              curl -ks -H 'Content-Type: application/json' \
+                   -X POST --data @- \
+                   "${RUNS}" <<JSON
+              {
+                "display_name": "job-run",
+                "description": "",
+                "pipeline_version_reference": {
+                  "pipeline_id": "${PIPELINE_ID}"
+                },
+                "runtime_config": {
+                  "parameters": {}
+                },
+                "service_account": ""
+              }
+              JSON

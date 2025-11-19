@@ -1,0 +1,11 @@
+FROM registry.access.redhat.com/ubi9/python-312:9.5
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --upgrade pip && \
+    pip install -r requirements.txt
+
+COPY app.py .
+
+CMD ["python", "app.py"]

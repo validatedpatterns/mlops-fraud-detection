@@ -3,197 +3,82 @@ clusterGroup:
   isHubCluster: true
 
   namespaces:
-    - open-cluster-management
     - vault
     - golang-external-secrets
-    - mlops
-    - openshift-storage
-    - redhat-ods-operator
     - inferencing-app
-
+    - fraud-detection:
+        labels:
+          opendatahub.io/dashboard: true
+          openshift.io/cluster-monitoring: true
+    - redhat-ods-operator:
+        operatorGroup: true
+        targetNamespaces: []
+    - openshift-serverless:
+        operatorGroup: true
+        targetNamespaces: []
 
   projects:
     - hub
-    - mlops
-    - openshift-storage
+    - rhods
     - inferencing-app
-
+    - fraud-detection
 
   subscriptions:
-    acm:
-      name: advanced-cluster-management
-      namespace: open-cluster-management
-      channel: release-2.8
-      #csv: advanced-cluster-management.v2.6.1
-    
-    odf: 
-      name: odf-operator
-      namespace: openshift-storage
-    
-    rhods: 
+    rhods:
       name: rhods-operator
+      namespace: redhat-ods-operator
+      channel: stable
+
+    servicemesh:
+      name: servicemeshoperator
       namespace: openshift-operators
       channel: stable
-    
-    crunchy: 
-      name: crunchy-postgres-operator
-      source: certified-operators
+
+    serverless:
+      name: serverless-operator
+      namespace: openshift-serverless
+      channel: stable
+
+    authorino:
+      name: authorino-operator
       namespace: openshift-operators
-    
+      channel: stable
 
   applications:
-    acm:
-      name: acm
-      namespace: open-cluster-management
-      project: hub
-      path: common/acm
-      ignoreDifferences:
-      - group: internal.open-cluster-management.io
-        kind: ManagedClusterInfo
-        jsonPointers:
-          - /spec/loggingCA
-  
-    openshift-data-foundations:
-      name: openshift-data-foundations
-      namespace: openshift-storage
-      project: mlops
-      path: charts/all/openshift-data-foundations
-    
-    mlflow:
-      name: mlflow-server
-      namespace: mlops
-      project: mlops
-      path: charts/all/mlflow-server
-      overrides:
-      # - name: odhApplication.enabled
-      #   value: true
-      - name: objectStorage.objectBucketClaim.enabled
-        value: true
-    
-    jobs:
-      name: jobs
-      namespace: default
-      project: default
-      path: charts/all/jobs
-
-    # credit-fraud-model-app deployed using a local chart
-    inferencing-app:
-      name: inferencing-app
-      namespace: inferencing-app
-      project: inferencing-app
-      path: charts/all/inferenceapp
-
-    
     vault:
       name: vault
       namespace: vault
       project: hub
-      path: common/hashicorp-vault
+      chart: hashicorp-vault
+      chartVersion: 0.1.*
 
     golang-external-secrets:
       name: golang-external-secrets
       namespace: golang-external-secrets
       project: hub
-      path: common/golang-external-secrets
+      chart: golang-external-secrets
+      chartVersion: 0.1.*
 
-  imperative:
-    # NOTE: We *must* use lists and not hashes. As hashes lose ordering once parsed by helm
-    # The default schedule is every 10 minutes: imperative.schedule
-    # Total timeout of all jobs is 1h: imperative.activeDeadlineSeconds
-    # imagePullPolicy is set to always: imperative.imagePullPolicy
-    # For additional overrides that apply to the jobs, please refer to
-    # https://hybrid-cloud-patterns.io/imperative-actions/#additional-job-customizations
-    jobs:
-    - name: hello-world
-      # ansible playbook to be run
-      playbook: common/ansible/playbooks/hello-world/hello-world.yaml
-      # per playbook timeout in seconds
-      timeout: 234
-      # verbosity: "-v"
+    rhods:
+      name: rhods
+      namespace: redhat-ods-operator
+      project: rhods
+      path: charts/rhods
 
-  managedClusterGroups:
-    exampleRegion:
-      name: group-one
-      acmlabels:
-      - name: clusterGroup
-        value: group-one
-      helmOverrides:
-      - name: clusterGroup.isHubCluster
-        value: false
+    inferencing-app:
+      name: inferencing-app
+      namespace: inferencing-app
+      project: inferencing-app
+      path: charts/inferencing-app
 
-      # Before enabling cluster provisioning, ensure AWS and/or Azure
-      #   credentials and OCP pull secrets are defined in Vault.
-      #   See values-secret.yaml.template
-      #
-      #clusterPools:
-      #  exampleAWSPool:
-      #    name: aws-ap
-      #    openshiftVersion: 4.10.18
-      #    baseDomain: blueprints.rhecoeng.com
-      #    platform:
-      #      aws:
-      #        region: ap-southeast-2
-      #    clusters:
-      #    - One
-      #
-      #  exampleAzurePool:
-      #    name: azure-us
-      #    openshiftVersion: 4.10.18
-      #    baseDomain: blueprints.rhecoeng.com
-      #    platform:
-      #      azure:
-      #        baseDomainResourceGroupName: dojo-dns-zones
-      #        region: eastus
-      #    clusters:
-      #    - Two
-      #    - Three
+    minio:
+      name: minio-storage
+      namespace: fraud-detection
+      project: fraud-detection
+      path: charts/minio
 
-#  To have apps in multiple flavors, use namespaces and use helm overrides as appropriate
-#
-#    pipelines:
-#      name: pipelines
-#      namespace: production
-#      project: datacenter
-#      path: applications/pipeline
-#      repoURL: https://github.com/you/applications.git
-#      targetRevision: stable
-#      overrides:
-#      - name: myparam
-#        value: myparam
-#
-#    pipelines_staging:
-#    - name: pipelines
-#      namespace: staging
-#      project: datacenter
-#      path: applications/pipeline
-#      repoURL: https://github.com/you/applications.git
-#      targetRevision: main
-#
-#   Additional applications
-#   Be sure to include additional resources your apps will require
-#   +X machines
-#   +Y RAM
-#   +Z CPU
-#    vendor-app:
-#      name: vendor-app
-#      namespace: default
-#      project: vendor
-#      path: path/to/myapp
-#      repoURL: https://github.com/vendor/applications.git
-#      targetRevision: main
-
-#  managedSites:
-#    factory:
-#      name: factory
-#      # repoURL: https://github.com/dagger-refuse-cool/manuela-factory.git
-#      targetRevision: main
-#      path: applications/factory
-#      helmOverrides:
-#      - name: site.isHubCluster
-#        value: false
-#      clusterSelector:
-#        matchExpressions:
-#        - key: vendor
-#          operator: In
-#          values:
-#            - OpenShift
+    fraud-detection:
+      name: fraud-detection
+      namespace: fraud-detection
+      project: fraud-detection
+      path: charts/fraud-detection

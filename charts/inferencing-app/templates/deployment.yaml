@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.appName }}
+  labels:
+    app: {{ .Values.appName }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.appName }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.appName }}
+    spec:
+      containers:
+      - name: {{ .Values.appName }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+        - name: INFERENCE_ENDPOINT
+          value: https://fraud-detection-fraud-detection.apps.{{ .Values.global.clusterDomain }}/v2/models/fraud-detection/infer
+        - name: GRADIO_SERVER_PORT
+          value: {{ .Values.port | quote }}
+        ports:
+        - containerPort: {{ .Values.port }}
+          name: http
+          protocol: {{ .Values.protocol }}

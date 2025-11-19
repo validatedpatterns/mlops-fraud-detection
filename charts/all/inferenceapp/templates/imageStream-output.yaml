@@ -1,7 +1,0 @@
-apiVersion: image.openshift.io/v1
-kind: ImageStream
-metadata:
-  name: {{ .Values.appName }}-is-app
-  labels:
-    app: {{ .Values.appName }}
-  namespace: {{ .Values.namespace }}

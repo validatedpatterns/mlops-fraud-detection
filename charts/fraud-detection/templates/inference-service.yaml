@@ -1,0 +1,31 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  annotations:
+    openshift.io/display-name: fraud-detection
+    security.opendatahub.io/enable-auth: 'false'
+    serving.kserve.io/deploymentMode: RawDeployment
+  name: fraud-detection
+  labels:
+    networking.kserve.io/visibility: exposed
+    opendatahub.io/dashboard: 'true'
+spec:
+  predictor:
+    maxReplicas: 1
+    minReplicas: 1
+    model:
+      modelFormat:
+        name: onnx
+        version: '1'
+      name: ''
+      resources:
+        limits:
+          cpu: '2'
+          memory: 8Gi
+        requests:
+          cpu: '1'
+          memory: 4Gi
+      runtime: fraud-detection
+      storage:
+        key: aws-connection-my-storage
+        path: models/fraud

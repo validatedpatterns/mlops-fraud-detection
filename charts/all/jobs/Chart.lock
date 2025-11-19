@@ -1,6 +1,0 @@
-dependencies:
-- name: rbac
-  repository: https://day0hero.github.io/helm-charts
-  version: 0.1.5
-digest: sha256:a939078f55010e0c96acb7d255497cfa6cf2233e48ef1d515cfde03761db8dc3
-generated: "2024-01-15T11:00:17.218790493+01:00"
