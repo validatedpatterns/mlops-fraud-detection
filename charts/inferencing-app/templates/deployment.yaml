@@ -20,7 +20,7 @@ spec:
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         env:
         - name: INFERENCE_ENDPOINT
-          value: https://fraud-detection-fraud-detection.apps.{{ .Values.global.clusterDomain }}/v2/models/fraud-detection/infer
+          value: http://fraud-detection-predictor.fraud-detection.svc.cluster.local/v2/models/fraud-detection/infer
         - name: GRADIO_SERVER_PORT
           value: {{ .Values.port | quote }}
         ports:
