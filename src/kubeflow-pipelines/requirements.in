@@ -1,0 +1,8 @@
+kfp
+kfp-kubernetes
+numpy
+pandas
+torch
+scikit-learn
+boto3
+botocore
