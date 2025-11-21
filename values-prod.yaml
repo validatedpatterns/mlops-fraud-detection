@@ -1,10 +1,8 @@
 clusterGroup:
-  name: hub
+  name: prod
   isHubCluster: true
 
   namespaces:
-    - vault
-    - golang-external-secrets
     - inferencing-app
     - fraud-detection:
         labels:
@@ -17,68 +15,36 @@ clusterGroup:
         operatorGroup: true
         targetNamespaces: []
 
-  projects:
-    - hub
-    - rhods
-    - inferencing-app
-    - fraud-detection
-
   subscriptions:
     rhods:
       name: rhods-operator
       namespace: redhat-ods-operator
-      channel: stable
 
     servicemesh:
       name: servicemeshoperator
       namespace: openshift-operators
-      channel: stable
 
     serverless:
       name: serverless-operator
       namespace: openshift-serverless
-      channel: stable
-
-    authorino:
-      name: authorino-operator
-      namespace: openshift-operators
-      channel: stable
 
   applications:
-    vault:
-      name: vault
-      namespace: vault
-      project: hub
-      chart: hashicorp-vault
-      chartVersion: 0.1.*
-
-    golang-external-secrets:
-      name: golang-external-secrets
-      namespace: golang-external-secrets
-      project: hub
-      chart: golang-external-secrets
-      chartVersion: 0.1.*
-
     rhods:
       name: rhods
       namespace: redhat-ods-operator
-      project: rhods
       path: charts/rhods
 
     inferencing-app:
       name: inferencing-app
       namespace: inferencing-app
-      project: inferencing-app
       path: charts/inferencing-app
 
     minio:
       name: minio-storage
       namespace: fraud-detection
-      project: fraud-detection
       path: charts/minio
 
     fraud-detection:
       name: fraud-detection
       namespace: fraud-detection
-      project: fraud-detection
       path: charts/fraud-detection
