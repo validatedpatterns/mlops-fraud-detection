@@ -91,7 +91,6 @@ demo = gr.Interface(
         ],  # not fraud
     ],
     title="Predict Credit Card Fraud",
-    allow_flagging="never",
 )
 
 demo.launch(server_name=GRADIO_SERVER_NAME, server_port=GRADIO_SERVER_PORT)
