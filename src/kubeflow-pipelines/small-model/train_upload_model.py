@@ -5,7 +5,7 @@ from kfp.dsl import InputPath, OutputPath
 
 
 @dsl.component(
-    base_image="quay.io/modh/runtime-images:runtime-cuda-pytorch-ubi9-python-3.11-20250501-8e41d5c"
+    base_image="quay.io/modh/odh-pipeline-runtime-pytorch-cuda-py312-ubi9:rhoai-2.24-e8b7177ca2b6226a29d3aab458db7776d8fb0554"
 )
 def get_data(
     train_data_output_path: OutputPath(), validate_data_output_path: OutputPath()
@@ -24,7 +24,7 @@ def get_data(
 
 
 @dsl.component(
-    base_image="quay.io/modh/runtime-images:runtime-cuda-pytorch-ubi9-python-3.11-20250501-8e41d5c",
+    base_image="quay.io/modh/odh-pipeline-runtime-pytorch-cuda-py312-ubi9:rhoai-2.24-e8b7177ca2b6226a29d3aab458db7776d8fb0554",
 )
 def train_model(
     train_data_input_path: InputPath(),
@@ -40,6 +40,7 @@ def train_model(
     import torch.nn as nn
     from sklearn.preprocessing import StandardScaler
     from sklearn.utils import class_weight
+    from torch.utils.data import DataLoader, TensorDataset
 
     torch.set_default_dtype(torch.float32)
 
@@ -92,25 +93,53 @@ def train_model(
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = FraudNetMedium(len(feature_cols)).to(device)
 
-    X_train_t = torch.tensor(X_train, device=device)
-    y_train_t = torch.tensor(y_train, device=device)
+    # Create data loaders for mini-batch training
+    train_dataset = TensorDataset(
+        torch.tensor(X_train, dtype=torch.float32),
+        torch.tensor(y_train, dtype=torch.float32),
+    )
+    train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True)
+
     X_val_t = torch.tensor(X_val, device=device)
     y_val_t = torch.tensor(y_val, device=device)
 
-    sample_weights = (y_train_t * (pos_weight[0] - 1) + 1).flatten()
-    criterion = nn.BCELoss(weight=sample_weights)
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    # Use weighted BCELoss without pre-computed sample weights
+    criterion = nn.BCELoss(reduction="none")
+    optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)  # Lower learning rate
 
-    y_train_flat = y_train_t.flatten()
+    # Early stopping parameters
+    best_val_loss = float("inf")
+    best_model_state = None
+    patience = 5
+    patience_counter = 0
+    min_epochs = 10
+    max_epochs = 30
 
-    for epoch in range(3):
+    for epoch in range(max_epochs):
         model.train()
-        optimizer.zero_grad()
-        preds = model(X_train_t).flatten()
-        loss = criterion(preds, y_train_flat)
-        loss.backward()
-        optimizer.step()
+        train_loss = 0.0
+        num_batches = 0
 
+        for batch_X, batch_y in train_loader:
+            batch_X = batch_X.to(device)
+            batch_y = batch_y.to(device)
+
+            optimizer.zero_grad()
+            preds = model(batch_X).flatten()
+
+            # Apply class weights per sample
+            batch_weights = batch_y.flatten() * (pos_weight[0] - 1) + 1
+            loss = (criterion(preds, batch_y.flatten()) * batch_weights).mean()
+
+            loss.backward()
+            optimizer.step()
+
+            train_loss += loss.item()
+            num_batches += 1
+
+        train_loss /= num_batches
+
+        # Validation
         model.eval()
         with torch.no_grad():
             val_preds = model(X_val_t).flatten()
@@ -118,8 +147,25 @@ def train_model(
             val_acc = ((val_preds > 0.5).float() == y_val_t.flatten()).float().mean()
 
         print(
-            f"Epoch {epoch + 1}: train loss {loss.item():.4f} | val loss {val_loss.item():.4f} | val acc {val_acc.item():.4f}"
+            f"Epoch {epoch + 1}: train loss {train_loss:.4f} | val loss {val_loss.item():.4f} | val acc {val_acc.item():.4f}"
         )
+
+        # Early stopping logic
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            best_model_state = model.state_dict().copy()
+            patience_counter = 0
+        else:
+            patience_counter += 1
+
+        if epoch >= min_epochs and patience_counter >= patience:
+            print(f"Early stopping at epoch {epoch + 1}")
+            break
+
+    # Restore best model
+    if best_model_state is not None:
+        model.load_state_dict(best_model_state)
+        print(f"Restored best model with val loss {best_val_loss:.4f}")
 
     dummy = torch.randn(1, len(feature_cols), dtype=torch.float32)
     torch.onnx.export(
@@ -134,7 +180,7 @@ def train_model(
 
 
 @dsl.component(
-    base_image="quay.io/modh/runtime-images:runtime-cuda-pytorch-ubi9-python-3.11-20250501-8e41d5c",
+    base_image="quay.io/modh/odh-pipeline-runtime-pytorch-cuda-py312-ubi9:rhoai-2.24-e8b7177ca2b6226a29d3aab458db7776d8fb0554",
 )
 def upload_model(input_model_path: InputPath()):
     import os

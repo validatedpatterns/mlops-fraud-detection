@@ -1,12 +1,10 @@
----
 global:
   pattern: mlops
-  options:
-    useCSV: false
-    syncPolicy: Automatic
-    installPlanApproval: Automatic
+  secretLoader:
+    disabled: true
+
 main:
-  clusterGroupName: hub
+  clusterGroupName: prod
   multiSourceConfig:
     enabled: true
     clusterGroupChartVersion: "0.9.*"
