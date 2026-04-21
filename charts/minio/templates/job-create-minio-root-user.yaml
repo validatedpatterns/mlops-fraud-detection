@@ -14,7 +14,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: create-minio-root-user
-          image: image-registry.openshift-image-registry.svc:5000/openshift/tools:latest
+          image: quay.io/validatedpatterns/utility-container:latest
           imagePullPolicy: IfNotPresent
           command:
             - /bin/bash
