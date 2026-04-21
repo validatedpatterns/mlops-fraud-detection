@@ -16,7 +16,7 @@ spec:
       restartPolicy: Never
       initContainers:
         - name: wait-for-minio
-          image: image-registry.openshift-image-registry.svc:5000/openshift/tools:latest
+          image: quay.io/validatedpatterns/utility-container:latest
           imagePullPolicy: IfNotPresent
           command:
             - /bin/bash
@@ -38,7 +38,7 @@ spec:
               sleep 10
       containers:
         - name: create-buckets
-          image: image-registry.openshift-image-registry.svc:5000/redhat-ods-applications/s2i-generic-data-science-notebook:2024.1
+          image: quay.io/validatedpatterns/utility-container:latest
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:
