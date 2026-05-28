@@ -9,7 +9,7 @@ spec:
   port:
     targetPort: console
   tls:
-    insecureEdgeTerminationPolicy: Redirect
+    insecureEdgeTerminationPolicy: Allow
     termination: edge
   to:
     kind: Service
