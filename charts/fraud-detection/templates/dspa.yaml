@@ -22,4 +22,4 @@ spec:
         accessKey: AWS_ACCESS_KEY_ID
         secretKey: AWS_SECRET_ACCESS_KEY
         secretName: aws-connection-pipeline-artifacts
-      scheme: https
+      scheme: http

@@ -9,7 +9,7 @@ spec:
   port:
     targetPort: api
   tls:
-    insecureEdgeTerminationPolicy: Redirect
+    insecureEdgeTerminationPolicy: Allow
     termination: edge
   to:
     kind: Service
