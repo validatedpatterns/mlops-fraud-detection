@@ -3,6 +3,8 @@ global:
   secretLoader:
     disabled: true
 
+  singleArgoCD: true
+
 main:
   clusterGroupName: prod
   multiSourceConfig:
